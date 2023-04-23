@@ -99,14 +99,14 @@ async function chatReplyProcess(options: RequestOptions) {
       else
         options = { ...lastContext }
     }
-
     const response = await api.sendMessage(message, {
       ...options,
       onProgress: (partialResponse) => {
         process?.(partialResponse)
       },
     })
-
+    globalThis.console.log('User:', message)
+    globalThis.console.log('ChatGPT:', response.text)
     return sendResponse({ type: 'Success', data: response })
   }
   catch (error: any) {
