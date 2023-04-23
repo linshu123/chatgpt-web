@@ -61,5 +61,25 @@
   "i18n-ally.localesPaths": [
     "src/locales"
   ],
-  "i18n-ally.keystyle": "nested"
+  "i18n-ally.keystyle": "nested",
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#eedf43",
+    "activityBar.background": "#eedf43",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#0d9286",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "commandCenter.border": "#15202b99",
+    "sash.hoverBorder": "#eedf43",
+    "statusBar.background": "#e9d615",
+    "statusBar.foreground": "#15202b",
+    "statusBarItem.hoverBackground": "#baab11",
+    "statusBarItem.remoteBackground": "#e9d615",
+    "statusBarItem.remoteForeground": "#15202b",
+    "titleBar.activeBackground": "#e9d615",
+    "titleBar.activeForeground": "#15202b",
+    "titleBar.inactiveBackground": "#e9d61599",
+    "titleBar.inactiveForeground": "#15202b99"
+  },
+  "peacock.color": "#e9d615"
 }
