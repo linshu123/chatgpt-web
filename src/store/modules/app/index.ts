@@ -11,6 +11,11 @@ export const useAppStore = defineStore('app-store', {
       this.recordState()
     },
 
+    setLastGPT4ActivatedTimestamp(timestamp: number) {
+      this.lastGPT4ActivatedTimestamp = timestamp
+      this.recordState()
+    },
+
     setTheme(theme: Theme) {
       this.theme = theme
       this.recordState()

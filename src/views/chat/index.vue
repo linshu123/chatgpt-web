@@ -14,7 +14,7 @@ import { useUsingGPT4 } from './hooks/useUsingGPT4'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useChatStore, usePromptStore } from '@/store'
+import { useAppStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess } from '@/api'
 import { t } from '@/locales'
 
@@ -27,6 +27,7 @@ const dialog = useDialog()
 const ms = useMessage()
 
 const chatStore = useChatStore()
+const appStore = useAppStore()
 
 useCopyCode()
 
@@ -60,6 +61,22 @@ dataSources.value.forEach((item, index) => {
 function handleSubmit() {
   onConversation()
 }
+
+function resetUsingGPT4() {
+  // If usingGPT4 doesn't exist or is false, return
+  if (!usingGPT4.value)
+    return
+
+  // if last message's timestamp is more than 30 minutes ago, reset usingGPT4
+  const lastGPT4ActivatedTimestamp = appStore.lastGPT4ActivatedTimestamp
+  const now = Date.now()
+  if (now - lastGPT4ActivatedTimestamp > 30 * 1000 * 60)
+    toggleUsingGPT4()
+}
+
+window.setInterval(() => {
+  resetUsingGPT4()
+}, 1000 * 60)
 
 async function onConversation() {
   let message = prompt.value
@@ -206,6 +223,9 @@ async function onConversation() {
     scrollToBottomIfAtBottom()
   }
   finally {
+    if (usingGPT4.value)
+      appStore.setLastGPT4ActivatedTimestamp(Date.now())
+
     loading.value = false
   }
 }
