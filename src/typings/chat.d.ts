@@ -18,12 +18,14 @@ declare namespace Chat {
 
 	interface ChatState {
 		active: number | null
+		usingGPT4: boolean;
 		usingContext: boolean;
 		history: History[]
 		chat: { uuid: number; data: Chat[] }[]
 	}
 
 	interface ConversationRequest {
+		usingGPT4?: boolean
 		conversationId?: string
 		parentMessageId?: string
 	}

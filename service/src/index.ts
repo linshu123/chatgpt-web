@@ -23,10 +23,11 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
   try {
-    const { prompt, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+    const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
     let firstChunk = true
     await chatReplyProcess({
       message: prompt,
+      usingGPT4: usingGPT4 ?? false,
       lastContext: options,
       process: (chat: ChatMessage) => {
         res.write(firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`)

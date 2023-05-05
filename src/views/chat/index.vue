@@ -10,6 +10,7 @@ import { useScroll } from './hooks/useScroll'
 import { useChat } from './hooks/useChat'
 import { useCopyCode } from './hooks/useCopyCode'
 import { useUsingContext } from './hooks/useUsingContext'
+import { useUsingGPT4 } from './hooks/useUsingGPT4'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -33,6 +34,7 @@ const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
+const { usingGPT4, toggleUsingGPT4 } = useUsingGPT4()
 
 const { uuid } = route.params as { uuid: string }
 
@@ -91,6 +93,8 @@ async function onConversation() {
 
   if (lastContext && usingContext.value)
     options = { ...lastContext }
+
+  options.usingGPT4 = usingGPT4.value
 
   addChat(
     +uuid,
@@ -471,8 +475,10 @@ onUnmounted(() => {
     <HeaderComponent
       v-if="isMobile"
       :using-context="usingContext"
+      :using-gpt4="usingGPT4"
       @export="handleExport"
       @toggle-using-context="toggleUsingContext"
+      @toggle-using-gpt4="toggleUsingGPT4"
     />
     <main class="flex-1 overflow-hidden">
       <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
@@ -519,6 +525,11 @@ onUnmounted(() => {
           <HoverButton @click="handleClear">
             <span class="text-xl text-[#4f555e] dark:text-white">
               <SvgIcon icon="ri:delete-bin-line" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="toggleUsingGPT4">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGPT4, 'text-[#a8071a]': !usingGPT4 }">
+              <SvgIcon icon="ph:number-circle-four-bold" />
             </span>
           </HoverButton>
           <HoverButton v-if="!isMobile" @click="handleExport">

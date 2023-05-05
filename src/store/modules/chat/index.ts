@@ -28,6 +28,11 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
+    setUsingGPT4(context: boolean) {
+      this.usingGPT4 = context
+      this.recordState()
+    },
+
     addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {
       this.history.unshift(history)
       this.chat.unshift({ uuid: history.uuid, data: chatData })

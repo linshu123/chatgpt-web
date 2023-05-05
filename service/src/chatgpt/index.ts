@@ -28,14 +28,14 @@ const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT
 const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
 let apiModel: ApiModel
-const model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
+let model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
 
 if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN))
   throw new Error('Missing OPENAI_API_KEY or OPENAI_ACCESS_TOKEN environment variable')
 
 let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
 
-(async () => {
+async function updateChatGPTAPIOptions() {
   // More Info: https://github.com/transitive-bullshit/chatgpt-api
 
   if (isNotEmptyString(process.env.OPENAI_API_KEY)) {
@@ -81,10 +81,19 @@ let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
     api = new ChatGPTUnofficialProxyAPI({ ...options })
     apiModel = 'ChatGPTUnofficialProxyAPI'
   }
-})()
+}
+
+// Initialize proxy
+updateChatGPTAPIOptions()
 
 async function chatReplyProcess(options: RequestOptions) {
-  const { message, lastContext, process, systemMessage, temperature, top_p } = options
+  const { usingGPT4, message, lastContext, process, systemMessage, temperature, top_p } = options
+
+  const chatSelectedModel = usingGPT4 ? 'gpt-4' : 'gpt-3.5-turbo'
+  if (chatSelectedModel !== model) {
+    model = chatSelectedModel
+    updateChatGPTAPIOptions()
+  }
   try {
     let options: SendMessageOptions = { timeoutMs }
 
@@ -106,8 +115,10 @@ async function chatReplyProcess(options: RequestOptions) {
         process?.(partialResponse)
       },
     })
+
+    globalThis.console.log('Model:', model)
     globalThis.console.log('User:', message)
-    globalThis.console.log('ChatGPT:', response.text)
+    globalThis.console.log(usingGPT4 ? 'GPT-4' : 'ChatGPT:', response.text)
     checkForSuicideKeywords(message, response.text)
     return sendResponse({ type: 'Success', data: response })
   }

@@ -41,6 +41,7 @@ export default {
     exportSuccess: 'Export Success',
     exportFailed: 'Export Failed',
     usingContext: 'Context Mode',
+    usingGPT4: 'Using GPT-4',
     turnOnContext: 'In the current mode, sending messages will carry previous chat records.',
     turnOffContext: 'In the current mode, sending messages will not carry previous chat records.',
     deleteMessage: 'Delete Message',
