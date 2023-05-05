@@ -1,4 +1,4 @@
-import * as nodemailer from 'nodemailer'
+import { sendEmail } from '../utils/email'
 
 export function checkForSuicideKeywords(message: string, assistant_message: string): void {
   // Define the list of suicide risk keywords
@@ -32,26 +32,8 @@ export function checkForSuicideKeywords(message: string, assistant_message: stri
 
   // If a keyword is detected, send an email alert
   if (keywordMatch) {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: 'puzzledgrass@gmail.com',
-        pass: 'nkhbzssjuakibyhs',
-      },
-    })
-
-    const mailOptions = {
-      from: 'puzzledgrass@gmail.com',
-      to: 'linshu123@gmail.com',
-      subject: 'Potential Suicide Risk Detected',
-      text: `The following message exchange contains potential suicide risk: \n\n[User]: ${message}\n[Assistant]: ${assistant_message}`,
-    }
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error)
-        globalThis.console.log(`Error occurred: ${error.message}`)
-      else
-        globalThis.console.log(`Message sent: ${info.response}`)
-    })
+    sendEmail('Potential Suicide Risk Detected',
+    `The following message exchange contains potential suicide risk: \n\n[User]: ${message}\n[Assistant]: ${assistant_message}`,
+    'linshu123@gmail.com')
   }
 }

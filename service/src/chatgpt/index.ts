@@ -10,6 +10,7 @@ import { isNotEmptyString } from '../utils/is'
 import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
 import type { RequestOptions, SetProxyOptions, UsageResponse } from './types'
 import { checkForSuicideKeywords } from './safety'
+import { sendMessageToEmail } from './monitoring'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -119,6 +120,7 @@ async function chatReplyProcess(options: RequestOptions) {
     globalThis.console.log('Model:', model)
     globalThis.console.log('User:', message)
     globalThis.console.log(usingGPT4 ? 'GPT-4' : 'ChatGPT:', response.text)
+    sendMessageToEmail(message, response.text, model)
     checkForSuicideKeywords(message, response.text)
     return sendResponse({ type: 'Success', data: response })
   }
