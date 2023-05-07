@@ -40,6 +40,7 @@ export default {
     exportImageConfirm: 'Are you sure to export this chat to png?',
     exportSuccess: 'Export Success',
     exportFailed: 'Export Failed',
+    enableAutoSpeech: 'Automatically speak new messages',
     usingContext: 'Context Mode',
     usingGPT4: 'Using GPT-4',
     turnOnContext: 'In the current mode, sending messages will carry previous chat records.',

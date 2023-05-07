@@ -11,6 +11,7 @@ import { useChat } from './hooks/useChat'
 import { useCopyCode } from './hooks/useCopyCode'
 import { useUsingContext } from './hooks/useUsingContext'
 import { useUsingGPT4 } from './hooks/useUsingGPT4'
+import { getAutoSpeechStateAPI } from './hooks/enableAutoSpeech'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -36,6 +37,7 @@ const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 const { usingGPT4, toggleUsingGPT4 } = useUsingGPT4()
+const { enableAutoSpeech, toggleAutoSpeech } = getAutoSpeechStateAPI()
 
 const { uuid } = route.params as { uuid: string }
 
@@ -226,7 +228,29 @@ async function onConversation() {
     if (usingGPT4.value)
       appStore.setLastGPT4ActivatedTimestamp(Date.now())
 
+    if (enableAutoSpeech.value) {
+      const currentChat = getChatByUuidAndIndex(+uuid, dataSources.value.length - 1)
+      if (currentChat)
+        speakVoicerss(currentChat.text)
+    }
+
     loading.value = false
+  }
+}
+
+async function speakVoicerss(text: string) {
+  const language = 'zh-cn'
+  const encodedText = encodeURIComponent(text)
+  const url = `http://api.voicerss.org/?key=8bc7a2a6e4e24aafa06ad4c854b71b7c&hl=${language}&src=${encodedText}`
+
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const audio = new Audio(URL.createObjectURL(blob))
+    audio.play()
+  }
+  catch (error) {
+    console.error('Error fetching TTS data:', error)
   }
 }
 
@@ -496,9 +520,11 @@ onUnmounted(() => {
       v-if="isMobile"
       :using-context="usingContext"
       :using-gpt4="usingGPT4"
+      :enable-auto-speech="enableAutoSpeech"
       @export="handleExport"
       @toggle-using-context="toggleUsingContext"
       @toggle-using-gpt4="toggleUsingGPT4"
+      @toggle-auto-speech="toggleAutoSpeech"
     />
     <main class="flex-1 overflow-hidden">
       <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto">
@@ -550,6 +576,13 @@ onUnmounted(() => {
           <HoverButton v-if="!isMobile" @click="toggleUsingGPT4">
             <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGPT4, 'text-[#a8071a]': !usingGPT4 }">
               <SvgIcon icon="ph:number-circle-four-bold" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="toggleAutoSpeech">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': enableAutoSpeech, 'text-[#a8071a]': !enableAutoSpeech }">
+              <SvgIcon
+                icon="material-symbols:select-to-speak-outline-rounded"
+              />
             </span>
           </HoverButton>
           <HoverButton v-if="!isMobile" @click="handleExport">

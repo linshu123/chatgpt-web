@@ -41,6 +41,8 @@ export default {
     exportSuccess: '保存成功',
     exportFailed: '保存失败',
     usingContext: '上下文模式',
+    enableAutoSpeech: '启用自动朗读',
+    disableAutoSpeech: '关闭自动朗读',
     turnOnGPT4: '使用GPT-4',
     turnOffGPT4: '使用GPT-3.5',
     turnOnContext: '当前模式下, 发送消息会携带之前的聊天记录',
