@@ -244,7 +244,7 @@ async function speakVoicerss(text: string) {
   const url = `http://api.voicerss.org/?key=8bc7a2a6e4e24aafa06ad4c854b71b7c&hl=${language}&src=${encodedText}`
 
   try {
-    const response = await fetch(url)
+    const response = await fetch(url, { mode: 'no-cors' })
     const blob = await response.blob()
     const audio = new Audio(URL.createObjectURL(blob))
     audio.play()
