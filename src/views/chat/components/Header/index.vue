@@ -10,7 +10,6 @@ interface Props {
 }
 
 interface Emit {
-  (ev: 'export'): void
   (ev: 'toggleUsingContext'): void
   (ev: 'toggleUsingGpt4'): void
   (ev: 'toggleAutoSpeech'): void
@@ -34,10 +33,6 @@ function onScrollToTop() {
   const scrollRef = document.querySelector('#scrollRef')
   if (scrollRef)
     nextTick(() => scrollRef.scrollTop = 0)
-}
-
-function handleExport() {
-  emit('export')
 }
 
 function toggleUsingContext() {
@@ -89,11 +84,6 @@ function toggleAutoSpeech() {
         <HoverButton @click="toggleUsingContext">
           <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext }">
             <SvgIcon icon="ri:chat-history-line" />
-          </span>
-        </HoverButton>
-        <HoverButton @click="handleExport">
-          <span class="text-xl text-[#4f555e] dark:text-white">
-            <SvgIcon icon="ri:download-2-line" />
           </span>
         </HoverButton>
       </div>
