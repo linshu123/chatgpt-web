@@ -22,6 +22,7 @@ app.all('*', (_, res, next) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
+  globalThis.console.log(req)
   try {
     const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
     let firstChunk = true
@@ -36,7 +37,12 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       systemMessage,
       temperature,
       top_p,
-    })
+    },
+    {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    },
+    )
   }
   catch (error) {
     res.write(JSON.stringify(error))

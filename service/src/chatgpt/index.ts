@@ -8,7 +8,7 @@ import fetch from 'node-fetch'
 import { sendResponse } from '../utils'
 import { isNotEmptyString } from '../utils/is'
 import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
-import type { RequestOptions, SetProxyOptions, UsageResponse } from './types'
+import type { RequestMetadata, RequestOptions, SetProxyOptions, UsageResponse } from './types'
 import { checkForSuicideKeywords } from './safety'
 import { sendMessageToEmail } from './monitoring'
 
@@ -87,7 +87,7 @@ async function updateChatGPTAPIOptions() {
 // Initialize proxy
 updateChatGPTAPIOptions()
 
-async function chatReplyProcess(options: RequestOptions) {
+async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
   const { usingGPT4, message, lastContext, process, systemMessage, temperature, top_p } = options
 
   const chatSelectedModel = usingGPT4 ? 'gpt-4' : 'gpt-3.5-turbo'
@@ -120,7 +120,7 @@ async function chatReplyProcess(options: RequestOptions) {
     globalThis.console.log('Model:', model)
     globalThis.console.log('User:', message)
     globalThis.console.log(usingGPT4 ? 'GPT-4' : 'ChatGPT:', response.text)
-    sendMessageToEmail(message, response.text, model)
+    sendMessageToEmail(message, response.text, model, metadata)
     checkForSuicideKeywords(message, response.text)
     return sendResponse({ type: 'Success', data: response })
   }

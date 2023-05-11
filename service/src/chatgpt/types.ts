@@ -11,6 +11,11 @@ export interface RequestOptions {
   top_p?: number
 }
 
+export interface RequestMetadata {
+  ipAddress: string
+  userAgent: string
+}
+
 export interface SetProxyOptions {
   fetch?: typeof fetch
 }
