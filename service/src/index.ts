@@ -6,6 +6,7 @@ import { chatConfig, chatReplyProcess, currentModel } from './chatgpt'
 import { auth } from './middleware/auth'
 import { limiter } from './middleware/limiter'
 import { isNotEmptyString } from './utils/is'
+import { sendEmail } from './utils/email'
 const BLOCKED_IP_FILE_PATH = '/tmp/blocked_ips.json'
 const MESSAGE_COUNT_FILE_PATH = '/tmp/message_count.json'
 
@@ -28,6 +29,7 @@ async function recordMessage(prompt: string, ip: string, blockedIps: any): Promi
       delete messageCount[ip][prompt]
       await writeJSONFile(MESSAGE_COUNT_FILE_PATH, messageCount)
       await writeJSONFile(BLOCKED_IP_FILE_PATH, blockedIps)
+      sendEmail(`Blocked IP: ${ip}`, `Spam content: ${prompt}`, 'linshuty@hotmail.com')
     }
     else {
       messageCount[ip][prompt].count++
