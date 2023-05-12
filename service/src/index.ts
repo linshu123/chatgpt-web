@@ -77,6 +77,11 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       return
     }
   }
+  if (req.headers['user-agent'].includes('python-requests')) {
+    res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
+    res.end()
+    return
+  }
 
   try {
     const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
