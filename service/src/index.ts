@@ -1,16 +1,58 @@
 import express from 'express'
+import { readJSONFile, writeJSONFile } from './utils/json-files'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
 import { chatConfig, chatReplyProcess, currentModel } from './chatgpt'
 import { auth } from './middleware/auth'
 import { limiter } from './middleware/limiter'
 import { isNotEmptyString } from './utils/is'
+const BLOCKED_IP_FILE_PATH = '/tmp/blocked_ips.json'
+const MESSAGE_COUNT_FILE_PATH = '/tmp/message_count.json'
 
 const app = express()
 const router = express.Router()
 
 app.use(express.static('public'))
 app.use(express.json())
+
+async function recordMessage(prompt: string, ip: string, blockedIps: any): Promise<void> {
+  // Do not record special messages
+  if (prompt === 'continue' || prompt === '继续')
+    return
+
+  const messageCount = await readJSONFile(MESSAGE_COUNT_FILE_PATH)
+  if (messageCount[ip] && messageCount[ip][prompt] && Date.now() - messageCount[ip][prompt].timestamp < 1000 * 3600 * 24) {
+    // 24 小时内同一个 IP 发送同一个消息超过 3 次，封禁该 IP
+    if (messageCount[ip][prompt].count >= 2) {
+      blockedIps[ip] = Date.now()
+      delete messageCount[ip][prompt]
+      await writeJSONFile(MESSAGE_COUNT_FILE_PATH, messageCount)
+      await writeJSONFile(BLOCKED_IP_FILE_PATH, blockedIps)
+    }
+    else {
+      messageCount[ip][prompt].count++
+      await writeJSONFile(MESSAGE_COUNT_FILE_PATH, messageCount)
+    }
+    return
+  }
+
+  // Insert new message count with timestamp
+  if (!messageCount[ip]) {
+    messageCount[ip] = {
+      [prompt]: {
+        count: 1,
+        timestamp: Date.now(),
+      },
+    }
+  }
+  else {
+    messageCount[ip][prompt] = {
+      count: 1,
+      timestamp: Date.now(),
+    }
+  }
+  await writeJSONFile(MESSAGE_COUNT_FILE_PATH, messageCount)
+}
 
 app.all('*', (_, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
@@ -22,9 +64,23 @@ app.all('*', (_, res, next) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  globalThis.console.log(req)
+  const blockedIps = await readJSONFile(BLOCKED_IP_FILE_PATH)
+  if (blockedIps[req.ip]) {
+    const currentTimestamp = Date.now()
+    if (currentTimestamp - blockedIps[req.ip] > 1000 * 3600 * 24) {
+      delete blockedIps[req.ip]
+      await writeJSONFile(BLOCKED_IP_FILE_PATH, blockedIps)
+    }
+    else {
+      res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
+      res.end()
+      return
+    }
+  }
+
   try {
     const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+    await recordMessage(prompt, req.ip, blockedIps)
     let firstChunk = true
     await chatReplyProcess({
       message: prompt,
