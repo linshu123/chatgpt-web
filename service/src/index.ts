@@ -7,8 +7,8 @@ import { auth } from './middleware/auth'
 import { limiter } from './middleware/limiter'
 import { isNotEmptyString } from './utils/is'
 import { sendEmail } from './utils/email'
-const BLOCKED_IP_FILE_PATH = '/tmp/blocked_ips.json'
-const MESSAGE_COUNT_FILE_PATH = '/tmp/message_count.json'
+import { BLOCKED_IP_FILE_PATH, MESSAGE_COUNT_FILE_PATH } from './utils/const'
+import { processCommands } from './middleware/command'
 
 const app = express()
 const router = express.Router()
@@ -87,6 +87,12 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
 
   try {
     const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+    const commandExecutionMsg = await processCommands(prompt)
+    if (commandExecutionMsg !== null) {
+      res.write(JSON.stringify({ type: 'Success', message: commandExecutionMsg }))
+      res.end()
+      return
+    }
     await recordMessage(prompt, req.ip, blockedIps)
     let firstChunk = true
     await chatReplyProcess({
