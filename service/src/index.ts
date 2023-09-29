@@ -24,7 +24,7 @@ async function recordMessage(prompt: string, ip: string, blockedIps: any): Promi
   const messageCount = await readJSONFile(MESSAGE_COUNT_FILE_PATH)
   if (messageCount[ip] && messageCount[ip][prompt] && Date.now() - messageCount[ip][prompt].timestamp < 1000 * 3600 * 24) {
     // 24 小时内同一个 IP 发送同一个消息超过 3 次，封禁该 IP
-    if (messageCount[ip][prompt].count >= 2) {
+    if (messageCount[ip][prompt].count >= 3) {
       blockedIps[ip] = Date.now()
       delete messageCount[ip][prompt]
       await writeJSONFile(MESSAGE_COUNT_FILE_PATH, messageCount)
@@ -79,7 +79,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       return
     }
   }
-  if (req.headers['user-agent'].includes('python-requests')) {
+  if (!req.headers['user-agent'].includes('Mozilla') && !req.headers['user-agent'].includes('Chrome') && !req.headers['user-agent'].includes('Safari') && !req.headers['user-agent'].includes('Edge')) {
     res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
     res.end()
     return
