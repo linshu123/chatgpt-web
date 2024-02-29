@@ -9,6 +9,7 @@ import { isNotEmptyString } from './utils/is'
 import { sendEmail } from './utils/email'
 import { BLOCKED_IP_FILE_PATH, MESSAGE_COUNT_FILE_PATH } from './utils/const'
 import { processCommands } from './middleware/command'
+import { addIPToAuthenticated, isIPAuthenticated } from './middleware/familyAuthentication'
 
 const app = express()
 const router = express.Router()
@@ -83,6 +84,28 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
     res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
     res.end()
     return
+  }
+  const [isIpAuthenticated] = await Promise.all([
+    isIPAuthenticated(req.ip),
+  ])
+  if (!isIpAuthenticated) {
+    const { prompt } = req.body
+
+    const lowerCasePrompt = prompt.toLowerCase()
+    if (!lowerCasePrompt.includes('hello world'))
+      sendEmail(`Authentication attempt: ${prompt}`, `Authentication attempt: ${prompt}`, 'linshuty@hotmail.com')
+
+    if (prompt === '林澍' || (lowerCasePrompt.includes('shu') && lowerCasePrompt.includes('lin'))) {
+      await addIPToAuthenticated(req.ip)
+      res.write(JSON.stringify({ type: 'Success', message: '请继续对话：' }))
+      res.end()
+      return
+    }
+    else {
+      res.write(JSON.stringify({ type: 'Success', message: '请输入服务的搭建者名字：' }))
+      res.end()
+      return
+    }
   }
 
   try {
