@@ -28,7 +28,7 @@ spec:
             - name: OPENAI_API_BASE_URL
               value: 'https://api.openai.com'
             - name: OPENAI_API_MODEL
-              value: gpt-4-turbo-preview
+              value: gpt-4o
             - name: API_REVERSE_PROXY
               value: https://bypass.churchless.tech/api/conversation
             - name: AUTH_SECRET_KEY

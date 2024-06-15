@@ -133,6 +133,7 @@ docker run -p 3010:3010 --env OPENAI_API_KEY=<API_KEY> \
 app.listen(3002, () => globalThis.console.log('Server is running on port 3002'))
 
 # Build & Push
+docker buildx use multiarch-builder
 docker buildx build --push \
   --platform linux/amd64,linux/arm64 \
   --tag linshu123/chatgpt-web-test:buildx-latest .

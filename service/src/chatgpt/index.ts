@@ -80,7 +80,7 @@ updateChatGPTAPIOptions()
 async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
   const { usingGPT4, message, lastContext, process, systemMessage, temperature, top_p } = options
 
-  const chatSelectedModel = 'gpt-4-turbo-preview'
+  const chatSelectedModel = 'gpt-4o'
   if (chatSelectedModel !== model) {
     model = chatSelectedModel
     updateChatGPTAPIOptions()
