@@ -28,11 +28,6 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
-    setUsingGPT4(context: boolean) {
-      this.usingGPT4 = context
-      this.recordState()
-    },
-
     setUsingGPT5(context: boolean) {
       this.usingGPT5 = context
       this.recordState()

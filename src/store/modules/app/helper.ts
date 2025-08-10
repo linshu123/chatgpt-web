@@ -10,12 +10,11 @@ export interface AppState {
   siderCollapsed: boolean
   theme: Theme
   language: Language
-  lastGPT4ActivatedTimestamp: number
   lastGPT5ActivatedTimestamp: number
 }
 
 export function defaultSetting(): AppState {
-  return { siderCollapsed: false, theme: 'light', language: 'zh-CN', lastGPT4ActivatedTimestamp: 0, lastGPT5ActivatedTimestamp: 0 }
+  return { siderCollapsed: false, theme: 'light', language: 'zh-CN', lastGPT5ActivatedTimestamp: 0 }
 }
 
 export function getLocalSetting(): AppState {

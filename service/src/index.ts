@@ -111,7 +111,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
   }
 
   try {
-    const { prompt, usingGPT4, usingGPT5, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+    const { prompt, usingGPT5, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
     const commandExecutionMsg = await processCommands(prompt)
     if (commandExecutionMsg !== null) {
       res.write(JSON.stringify({ type: 'Success', message: commandExecutionMsg }))
@@ -122,7 +122,6 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
     let firstChunk = true
     await chatReplyProcess({
       message: prompt,
-      usingGPT4: usingGPT4 ?? false,
       usingGPT5: usingGPT5 ?? false,
       lastContext: options,
       process: (chat: ChatMessage) => {

@@ -4,7 +4,6 @@ export interface RequestProps {
   prompt: string
   options?: ChatContext
   systemMessage: string
-  usingGPT4?: boolean
   usingGPT5?: boolean
   temperature?: number
   top_p?: number

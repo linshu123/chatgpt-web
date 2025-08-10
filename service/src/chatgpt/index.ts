@@ -85,16 +85,14 @@ function buildHistoryMessages(lastAssistantId?: string, systemMessage?: string) 
 
 async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
   globalThis.console.log('options', options)
-  const { usingGPT4, usingGPT5, message, lastContext, process: onStream, systemMessage, temperature, top_p } = options
+  const { usingGPT5, message, lastContext, process: onStream, systemMessage, temperature, top_p } = options
 
   // Request-scoped model selection
   let chatSelectedModel = defaultModel
   if (usingGPT5)
     chatSelectedModel = 'gpt-5'
-  else if (usingGPT4)
-    chatSelectedModel = 'gpt-4o'
   else
-    chatSelectedModel = 'gpt-3.5-turbo'
+    chatSelectedModel = 'gpt-4o' // Default to GPT-4o when GPT-5 is not selected
 
   globalThis.console.log('chatSelectedModel', chatSelectedModel)
 
@@ -196,7 +194,7 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
 
     globalThis.console.log('Model:', chatSelectedModel)
     globalThis.console.log('User:', message)
-    const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
+    const modelLabel = usingGPT5 ? 'GPT-5' : 'GPT-4o'
     globalThis.console.log(`${modelLabel}:`, final.text)
     sendMessageToEmail(message, final.text, chatSelectedModel, metadata)
     checkForSuicideKeywords(message, final.text)

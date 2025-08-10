@@ -11,11 +11,6 @@ export const useAppStore = defineStore('app-store', {
       this.recordState()
     },
 
-    setLastGPT4ActivatedTimestamp(timestamp: number) {
-      this.lastGPT4ActivatedTimestamp = timestamp
-      this.recordState()
-    },
-
     setLastGPT5ActivatedTimestamp(timestamp: number) {
       this.lastGPT5ActivatedTimestamp = timestamp
       this.recordState()

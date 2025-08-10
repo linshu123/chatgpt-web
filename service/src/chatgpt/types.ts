@@ -10,7 +10,6 @@ export interface ChatMessage {
 }
 
 export interface RequestOptions {
-  usingGPT4?: boolean
   usingGPT5?: boolean
   message: string
   lastContext?: { conversationId?: string; parentMessageId?: string }

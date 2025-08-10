@@ -19,7 +19,6 @@ declare namespace Chat {
 	interface ChatState {
 		active: number | null
 		enableAutoSpeech: boolean;
-		usingGPT4: boolean;
 		usingGPT5: boolean;
 		usingContext: boolean;
 		history: History[]
@@ -27,7 +26,6 @@ declare namespace Chat {
 	}
 
 	interface ConversationRequest {
-		usingGPT4?: boolean
 		usingGPT5?: boolean
 		conversationId?: string
 		parentMessageId?: string

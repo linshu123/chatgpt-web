@@ -9,7 +9,6 @@ import { useScroll } from './hooks/useScroll'
 import { useChat } from './hooks/useChat'
 import { useCopyCode } from './hooks/useCopyCode'
 import { useUsingContext } from './hooks/useUsingContext'
-import { useUsingGPT4 } from './hooks/useUsingGPT4'
 import { useUsingGPT5 } from './hooks/useUsingGPT5'
 import { getAutoSpeechStateAPI } from './hooks/enableAutoSpeech'
 import HeaderComponent from './components/Header/index.vue'
@@ -35,7 +34,6 @@ const { isMobile } = useBasicLayout()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
-const { usingGPT4, toggleUsingGPT4 } = useUsingGPT4()
 const { usingGPT5, toggleUsingGPT5 } = useUsingGPT5()
 const { enableAutoSpeech, toggleAutoSpeech } = getAutoSpeechStateAPI()
 
@@ -64,18 +62,6 @@ function handleSubmit() {
   onConversation()
 }
 
-function resetUsingGPT4() {
-  // If usingGPT4 doesn't exist or is false, return
-  if (!usingGPT4.value)
-    return
-
-  // if last message's timestamp is more than 30 minutes ago, reset usingGPT4
-  const lastGPT4ActivatedTimestamp = appStore.lastGPT4ActivatedTimestamp
-  const now = Date.now()
-  if (now - lastGPT4ActivatedTimestamp > 30 * 1000 * 60)
-    toggleUsingGPT4()
-}
-
 function resetUsingGPT5() {
   if (!usingGPT5.value)
     return
@@ -86,7 +72,6 @@ function resetUsingGPT5() {
 }
 
 window.setInterval(() => {
-  resetUsingGPT4()
   resetUsingGPT5()
 }, 1000 * 60)
 
@@ -123,7 +108,6 @@ async function onConversation() {
   if (lastContext && usingContext.value)
     options = { ...lastContext }
 
-  options.usingGPT4 = usingGPT4.value
   options.usingGPT5 = usingGPT5.value
 
   addChat(
@@ -236,9 +220,6 @@ async function onConversation() {
     scrollToBottomIfAtBottom()
   }
   finally {
-    if (usingGPT4.value)
-      appStore.setLastGPT4ActivatedTimestamp(Date.now())
-
     if (usingGPT5.value)
       appStore.setLastGPT5ActivatedTimestamp(Date.now())
 
@@ -491,11 +472,9 @@ onUnmounted(() => {
     <HeaderComponent
       v-if="isMobile"
       :using-context="usingContext"
-      :using-gpt4="usingGPT4"
       :using-gpt5="usingGPT5"
       :enable-auto-speech="enableAutoSpeech"
       @toggle-using-context="toggleUsingContext"
-      @toggle-using-gpt4="toggleUsingGPT4"
       @toggle-using-gpt5="toggleUsingGPT5"
       @toggle-auto-speech="toggleAutoSpeech"
     />
@@ -544,11 +523,6 @@ onUnmounted(() => {
           <HoverButton @click="handleClear">
             <span class="text-xl text-[#4f555e] dark:text-white">
               <SvgIcon icon="ri:delete-bin-line" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="!isMobile" @click="toggleUsingGPT4">
-            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGPT4, 'text-[#a8071a]': !usingGPT4 }">
-              <SvgIcon icon="ph:number-circle-four-bold" />
             </span>
           </HoverButton>
           <HoverButton v-if="!isMobile" @click="toggleUsingGPT5">

@@ -23,7 +23,7 @@ export function fetchChatConfig<T = any>() {
 export function fetchChatAPIProcess<T = any>(
   params: {
     prompt: string
-    options?: { usingGPT4?: boolean; usingGPT5?: boolean; conversationId?: string; parentMessageId?: string }
+    options?: { usingGPT5?: boolean; conversationId?: string; parentMessageId?: string }
     signal?: GenericAbortSignal
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
@@ -38,7 +38,6 @@ export function fetchChatAPIProcess<T = any>(
   if (authStore.isChatGPTAPI) {
     data = {
       ...data,
-      usingGPT4: params.options?.usingGPT4 ?? false,
       usingGPT5: params.options?.usingGPT5 ?? false,
       systemMessage: settingStore.systemMessage,
       temperature: settingStore.temperature,
