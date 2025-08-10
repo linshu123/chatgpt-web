@@ -41,6 +41,8 @@ export default {
     exportSuccess: '儲存成功',
     exportFailed: '儲存失敗',
     usingContext: '上下文模式',
+    turnOnGPT5: '使用GPT-5',
+    turnOffGPT5: '關閉GPT-5',
     turnOnContext: '啟用上下文模式，在此模式下，發送訊息會包含之前的聊天記錄。',
     turnOffContext: '關閉上下文模式，在此模式下，發送訊息不會包含之前的聊天記錄。',
     deleteMessage: '刪除訊息',

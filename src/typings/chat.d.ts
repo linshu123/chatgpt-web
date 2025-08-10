@@ -20,6 +20,7 @@ declare namespace Chat {
 		active: number | null
 		enableAutoSpeech: boolean;
 		usingGPT4: boolean;
+		usingGPT5: boolean;
 		usingContext: boolean;
 		history: History[]
 		chat: { uuid: number; data: Chat[] }[]
@@ -27,6 +28,7 @@ declare namespace Chat {
 
 	interface ConversationRequest {
 		usingGPT4?: boolean
+		usingGPT5?: boolean
 		conversationId?: string
 		parentMessageId?: string
 	}

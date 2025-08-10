@@ -6,12 +6,14 @@ import { useAppStore, useChatStore } from '@/store'
 interface Props {
   usingContext: boolean
   usingGpt4: boolean
+  usingGpt5: boolean
   enableAutoSpeech: boolean
 }
 
 interface Emit {
   (ev: 'toggleUsingContext'): void
   (ev: 'toggleUsingGpt4'): void
+  (ev: 'toggleUsingGpt5'): void
   (ev: 'toggleAutoSpeech'): void
 }
 
@@ -43,6 +45,10 @@ function toggleUsingGPT4() {
   emit('toggleUsingGpt4')
 }
 
+function toggleUsingGPT5() {
+  emit('toggleUsingGpt5')
+}
+
 function toggleAutoSpeech() {
   emit('toggleAutoSpeech')
 }
@@ -72,6 +78,11 @@ function toggleAutoSpeech() {
         <HoverButton @click="toggleUsingGPT4">
           <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGpt4, 'text-[#a8071a]': !usingGpt4 }">
             <SvgIcon icon="ph:number-circle-four-bold" />
+          </span>
+        </HoverButton>
+        <HoverButton @click="toggleUsingGPT5">
+          <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGpt5, 'text-[#a8071a]': !usingGpt5 }">
+            <SvgIcon icon="ph:number-circle-five-bold" />
           </span>
         </HoverButton>
         <HoverButton @click="toggleAutoSpeech">

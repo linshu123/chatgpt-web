@@ -43,6 +43,8 @@ export default {
     enableAutoSpeech: 'Automatically speak new messages',
     usingContext: 'Context Mode',
     usingGPT4: 'Using GPT-4',
+    turnOnGPT5: 'Using GPT-5',
+    turnOffGPT5: 'Back to GPT-4/3.5',
     turnOnContext: 'In the current mode, sending messages will carry previous chat records.',
     turnOffContext: 'In the current mode, sending messages will not carry previous chat records.',
     deleteMessage: 'Delete Message',

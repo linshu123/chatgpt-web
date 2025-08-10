@@ -41,6 +41,8 @@ export default {
     exportSuccess: '내보내기 성공',
     exportFailed: '내보내기 실패',
     usingContext: '컨텍스트 모드',
+    turnOnGPT5: 'GPT-5 사용',
+    turnOffGPT5: 'GPT-5 끄기',
     turnOnContext: '현재 모드에서는 이전 대화 기록을 포함하여 메시지를 보낼 수 있습니다.',
     turnOffContext: '현재 모드에서는 이전 대화 기록을 포함하지 않고 메시지를 보낼 수 있습니다.',
     deleteMessage: '메시지 삭제',

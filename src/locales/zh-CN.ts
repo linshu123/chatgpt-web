@@ -45,6 +45,8 @@ export default {
     disableAutoSpeech: '关闭自动朗读',
     turnOnGPT4: '使用GPT-4',
     turnOffGPT4: '使用GPT-3.5',
+    turnOnGPT5: '使用GPT-5',
+    turnOffGPT5: '关闭GPT-5',
     turnOnContext: '当前模式下, 发送消息会携带之前的聊天记录',
     turnOffContext: '当前模式下, 发送消息不会携带之前的聊天记录',
     deleteMessage: '删除消息',

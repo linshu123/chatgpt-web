@@ -67,21 +67,23 @@ app.all('*', (_, res, next) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  const blockedIps = await readJSONFile(BLOCKED_IP_FILE_PATH)
+  // const blockedIps = await readJSONFile(BLOCKED_IP_FILE_PATH)
+  const blockedIps = {}
   if (blockedIps[req.ip]) {
+    globalThis.console.log('blockedIps', blockedIps)
     const currentTimestamp = Date.now()
     if (currentTimestamp - blockedIps[req.ip] > 1000 * 3600 * 24) {
       delete blockedIps[req.ip]
       await writeJSONFile(BLOCKED_IP_FILE_PATH, blockedIps)
     }
     else {
-      res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
+      res.write(JSON.stringify({ type: 'Fail', message: 'Internal error2' }))
       res.end()
       return
     }
   }
   if (!req.headers['user-agent'].includes('Mozilla') && !req.headers['user-agent'].includes('Chrome') && !req.headers['user-agent'].includes('Safari') && !req.headers['user-agent'].includes('Edge')) {
-    res.write(JSON.stringify({ type: 'Fail', message: 'Internal error' }))
+    res.write(JSON.stringify({ type: 'Fail', message: 'Internal error3' }))
     res.end()
     return
   }
@@ -109,7 +111,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
   }
 
   try {
-    const { prompt, usingGPT4, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+    const { prompt, usingGPT4, usingGPT5, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
     const commandExecutionMsg = await processCommands(prompt)
     if (commandExecutionMsg !== null) {
       res.write(JSON.stringify({ type: 'Success', message: commandExecutionMsg }))
@@ -121,6 +123,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
     await chatReplyProcess({
       message: prompt,
       usingGPT4: usingGPT4 ?? false,
+      usingGPT5: usingGPT5 ?? false,
       lastContext: options,
       process: (chat: ChatMessage) => {
         res.write(firstChunk ? JSON.stringify(chat) : `\n${JSON.stringify(chat)}`)
@@ -161,7 +164,7 @@ router.post('/session', async (req, res) => {
     res.send({ status: 'Success', message: '', data: { auth: hasAuth, model: currentModel() } })
   }
   catch (error) {
-    res.send({ status: 'Fail', message: error.message, data: null })
+    res.send({ status: 'Fail', message: (error as any).message, data: null })
   }
 })
 
@@ -185,4 +188,4 @@ app.use('', router)
 app.use('/api', router)
 app.set('trust proxy', 1)
 
-app.listen(3002, () => globalThis.console.log('Server is running on port 3002'))
+app.listen(3020, () => globalThis.console.log('Server is running on port 3020'))

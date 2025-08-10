@@ -1,20 +1,23 @@
 import * as dotenv from 'dotenv'
 import 'isomorphic-fetch'
-import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt'
+import { OpenAI } from 'openai'
+import { ChatGPTUnofficialProxyAPI } from 'chatgpt'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import { sendResponse } from '../utils'
 import { isNotEmptyString } from '../utils/is'
 import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
-import type { RequestMetadata, RequestOptions, SetProxyOptions, UsageResponse } from './types'
+import type { ChatMessage, RequestMetadata, RequestOptions, SetProxyOptions, UsageResponse } from './types'
 import { checkForSuicideKeywords } from './safety'
 import { sendMessageToEmail } from './monitoring'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
 dotenv.config()
+
+// In-memory message store to maintain conversation context
+const messageStore = new Map<string, ChatMessage>()
 
 const ErrorCodeMessage: Record<string, string> = {
   401: '[OpenAI] 提供错误的API密钥 | Incorrect API key provided',
@@ -34,34 +37,27 @@ let model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_
 if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN))
   throw new Error('Missing OPENAI_API_KEY or OPENAI_ACCESS_TOKEN environment variable')
 
-let api: ChatGPTAPI | ChatGPTUnofficialProxyAPI
+let openai: OpenAI | undefined
+let unofficialApi: ChatGPTUnofficialProxyAPI | undefined
 
-async function updateChatGPTAPIOptions() {
-  // More Info: https://github.com/transitive-bullshit/chatgpt-api
+async function updateChatGPTAPIOptions(): Promise<void> {
+  const OPENAI_API_BASE_URL = process.env.OPENAI_API_BASE_URL
 
   if (isNotEmptyString(process.env.OPENAI_API_KEY)) {
-    const OPENAI_API_BASE_URL = process.env.OPENAI_API_BASE_URL
-
-    const options: ChatGPTAPIOptions = {
-      apiKey: process.env.OPENAI_API_KEY,
-      completionParams: { model },
-      debug: !disableDebug,
-    }
-
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 4096
-
-    if (isNotEmptyString(OPENAI_API_BASE_URL))
-      options.apiBaseUrl = `${OPENAI_API_BASE_URL}/v1`
-
+    // Setup fetch proxy for OpenAI SDK if needed
+    const options = {} as SetProxyOptions
     setupProxy(options)
 
-    api = new ChatGPTAPI({ ...options })
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY!,
+      baseURL: isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined,
+      fetch: options.fetch as any,
+    })
     apiModel = 'ChatGPTAPI'
   }
   else {
     const options: ChatGPTUnofficialProxyAPIOptions = {
-      accessToken: process.env.OPENAI_ACCESS_TOKEN,
+      accessToken: process.env.OPENAI_ACCESS_TOKEN!,
       apiReverseProxyUrl: isNotEmptyString(process.env.API_REVERSE_PROXY) ? process.env.API_REVERSE_PROXY : 'https://bypass.churchless.tech/api/conversation',
       model,
       debug: !disableDebug,
@@ -69,47 +65,174 @@ async function updateChatGPTAPIOptions() {
 
     setupProxy(options)
 
-    api = new ChatGPTUnofficialProxyAPI({ ...options })
+    unofficialApi = new ChatGPTUnofficialProxyAPI({ ...options })
     apiModel = 'ChatGPTUnofficialProxyAPI'
   }
 }
 
-// Initialize proxy
+// Initialize
 updateChatGPTAPIOptions()
 
-async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
-  const { usingGPT4, message, lastContext, process, systemMessage, temperature, top_p } = options
+function buildHistoryMessages(lastAssistantId?: string, systemMessage?: string) {
+  const history: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+  if (isNotEmptyString(systemMessage))
+    history.push({ role: 'system', content: systemMessage! })
 
-  const chatSelectedModel = 'gpt-4o'
+  // Walk back alternating user/assistant messages
+  let currentAssistantId = lastAssistantId
+  const stack: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  while (currentAssistantId) {
+    const assistant = messageStore.get(currentAssistantId)
+    if (!assistant || !assistant.parentMessageId)
+      break
+    const user = messageStore.get(assistant.parentMessageId)
+    if (!user)
+      break
+    // Unshift pair so final order is oldest -> newest
+    stack.unshift({ role: 'assistant', content: assistant.text })
+    stack.unshift({ role: 'user', content: user.text })
+    currentAssistantId = user.parentMessageId
+  }
+  history.push(...stack)
+  return history
+}
+
+async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
+  globalThis.console.log('options', options)
+  const { usingGPT4, usingGPT5, message, lastContext, process, systemMessage, temperature, top_p } = options
+
+  let chatSelectedModel = model
+  if (usingGPT5)
+    chatSelectedModel = 'gpt-5'
+  else if (usingGPT4)
+    chatSelectedModel = 'gpt-4o'
+  else
+    chatSelectedModel = 'gpt-3.5-turbo'
+
+  globalThis.console.log('chatSelectedModel', chatSelectedModel)
   if (chatSelectedModel !== model) {
     model = chatSelectedModel
     updateChatGPTAPIOptions()
   }
+
   try {
-    let options: SendMessageOptions = { timeoutMs }
-
     if (apiModel === 'ChatGPTAPI') {
-      if (isNotEmptyString(systemMessage))
-        options.systemMessage = systemMessage
-      options.completionParams = { model, temperature, top_p }
+      // Official OpenAI path with streaming aggregation and conversation history
+      const conversationId = lastContext?.conversationId ?? cryptoRandomId()
+      const previousAssistantId = lastContext?.parentMessageId
+
+      // Create and store the new user message to link the chain
+      const userMessageId = cryptoRandomId()
+      const userMessage: ChatMessage = {
+        id: userMessageId,
+        conversationId,
+        parentMessageId: previousAssistantId,
+        role: 'user',
+        text: message,
+      }
+      messageStore.set(userMessageId, userMessage)
+
+      // Build messages with history + current user
+      const messages = buildHistoryMessages(previousAssistantId, systemMessage)
+      messages.push({ role: 'user', content: message })
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+      const basePayload: any = {
+        model,
+        messages,
+        stream: true,
+      }
+      globalThis.console.log('messages', messages)
+      if (supportsSamplingParams(model) && typeof temperature === 'number')
+        basePayload.temperature = temperature
+      if (supportsSamplingParams(model) && typeof top_p === 'number')
+        basePayload.top_p = top_p
+
+      const doStream = async (payload: any) =>
+        await openai!.chat.completions.create(payload, { signal: controller.signal })
+
+      let stream
+      try {
+        stream = await doStream(basePayload)
+      }
+      catch (err: any) {
+        const msg = String(err?.message || '')
+        if (/Unsupported value: 'temperature'/.test(msg) || /parameter.*temperature/i.test(msg)) {
+          // Retry without sampling params
+          const retryPayload = { ...basePayload }
+          delete retryPayload.temperature
+          delete retryPayload.top_p
+          stream = await doStream(retryPayload)
+        }
+        else {
+          throw err
+        }
+      }
+
+      let aggregatedText = ''
+      // Create assistant message ID
+      const assistantMessageId = cryptoRandomId()
+      let finalFinishReason: string | undefined
+
+      for await (const part of stream) {
+        const delta = part.choices?.[0]?.delta?.content ?? ''
+        const fr = part.choices?.[0]?.finish_reason
+        if (fr)
+          finalFinishReason = fr
+        if (!delta)
+          continue
+        aggregatedText += delta
+        const partial: ChatMessage = {
+          id: assistantMessageId,
+          conversationId,
+          parentMessageId: userMessageId,
+          role: 'assistant',
+          text: aggregatedText,
+          detail: part,
+        }
+        process?.(partial)
+      }
+      clearTimeout(timeout)
+
+      const final: ChatMessage = {
+        id: assistantMessageId,
+        conversationId,
+        parentMessageId: userMessageId,
+        role: 'assistant',
+        text: aggregatedText,
+        detail: { choices: [{ finish_reason: finalFinishReason ?? 'stop' }] },
+      }
+
+      // Persist assistant message for future context
+      messageStore.set(assistantMessageId, final)
+
+      globalThis.console.log('Model:', model)
+      globalThis.console.log('User:', message)
+      const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
+      globalThis.console.log(`${modelLabel}:`, final.text)
+      sendMessageToEmail(message, final.text, model, metadata)
+      checkForSuicideKeywords(message, final.text)
+      return sendResponse({ type: 'Success', data: final })
     }
 
-    if (lastContext != null) {
-      if (apiModel === 'ChatGPTAPI')
-        options.parentMessageId = lastContext.parentMessageId
-      else
-        options = { ...lastContext }
-    }
-    const response = await api.sendMessage(message, {
-      ...options,
-      onProgress: (partialResponse) => {
+    // Unofficial path (preserved)
+    let sendOptions: any = { timeoutMs }
+    if (lastContext != null)
+      sendOptions = { ...sendOptions, ...lastContext }
+
+    const response = await unofficialApi!.sendMessage(message, {
+      ...sendOptions,
+      onProgress: (partialResponse: any) => {
         process?.(partialResponse)
       },
     })
 
     globalThis.console.log('Model:', model)
     globalThis.console.log('User:', message)
-    globalThis.console.log(usingGPT4 ? 'GPT-4' : 'ChatGPT:', response.text)
+    const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
+    globalThis.console.log(`${modelLabel}:`, response.text)
     sendMessageToEmail(message, response.text, model, metadata)
     checkForSuicideKeywords(message, response.text)
     return sendResponse({ type: 'Success', data: response })
@@ -121,6 +244,17 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
       return sendResponse({ type: 'Fail', message: ErrorCodeMessage[code] })
     return sendResponse({ type: 'Fail', message: error.message ?? 'Please check the back-end console' })
   }
+}
+
+function supportsSamplingParams(targetModel: string): boolean {
+  const m = targetModel.toLowerCase()
+  if (m.startsWith('gpt-5'))
+    return false
+  if (m.includes('realtime'))
+    return false
+  if (/^o\d/.test(m) || m.startsWith('o'))
+    return false
+  return true
 }
 
 async function fetchUsage() {
@@ -136,7 +270,6 @@ async function fetchUsage() {
 
   const [startDate, endDate] = formatDate()
 
-  // 每月使用量
   const urlUsage = `${API_BASE_URL}/v1/dashboard/billing/usage?start_date=${startDate}&end_date=${endDate}`
 
   const headers = {
@@ -149,8 +282,7 @@ async function fetchUsage() {
   setupProxy(options)
 
   try {
-    // 获取已使用量
-    const useResponse = await options.fetch(urlUsage, { headers })
+    const useResponse = await options.fetch!(urlUsage, { headers })
     if (!useResponse.ok)
       throw new Error('获取使用量失败')
     const usageData = await useResponse.json() as UsageResponse
@@ -190,7 +322,7 @@ function setupProxy(options: SetProxyOptions) {
   if (isNotEmptyString(process.env.SOCKS_PROXY_HOST) && isNotEmptyString(process.env.SOCKS_PROXY_PORT)) {
     const agent = new SocksProxyAgent({
       hostname: process.env.SOCKS_PROXY_HOST,
-      port: process.env.SOCKS_PROXY_PORT,
+      port: process.env.SOCKS_PROXY_PORT as any,
       userId: isNotEmptyString(process.env.SOCKS_PROXY_USERNAME) ? process.env.SOCKS_PROXY_USERNAME : undefined,
       password: isNotEmptyString(process.env.SOCKS_PROXY_PASSWORD) ? process.env.SOCKS_PROXY_PASSWORD : undefined,
     })
@@ -216,6 +348,10 @@ function setupProxy(options: SetProxyOptions) {
 
 function currentModel(): ApiModel {
   return apiModel
+}
+
+function cryptoRandomId(): string {
+  return `id-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
 }
 
 export type { ChatContext, ChatMessage }

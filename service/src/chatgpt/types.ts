@@ -1,8 +1,17 @@
-import type { ChatMessage } from 'chatgpt'
 import type fetch from 'node-fetch'
+
+export interface ChatMessage {
+  id: string
+  conversationId?: string
+  parentMessageId?: string
+  role: string
+  text: string
+  detail?: any
+}
 
 export interface RequestOptions {
   usingGPT4?: boolean
+  usingGPT5?: boolean
   message: string
   lastContext?: { conversationId?: string; parentMessageId?: string }
   process?: (chat: ChatMessage) => void

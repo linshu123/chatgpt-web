@@ -10,6 +10,7 @@ import { useChat } from './hooks/useChat'
 import { useCopyCode } from './hooks/useCopyCode'
 import { useUsingContext } from './hooks/useUsingContext'
 import { useUsingGPT4 } from './hooks/useUsingGPT4'
+import { useUsingGPT5 } from './hooks/useUsingGPT5'
 import { getAutoSpeechStateAPI } from './hooks/enableAutoSpeech'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
@@ -35,6 +36,7 @@ const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom } = useScroll()
 const { usingContext, toggleUsingContext } = useUsingContext()
 const { usingGPT4, toggleUsingGPT4 } = useUsingGPT4()
+const { usingGPT5, toggleUsingGPT5 } = useUsingGPT5()
 const { enableAutoSpeech, toggleAutoSpeech } = getAutoSpeechStateAPI()
 
 const { uuid } = route.params as { uuid: string }
@@ -74,8 +76,18 @@ function resetUsingGPT4() {
     toggleUsingGPT4()
 }
 
+function resetUsingGPT5() {
+  if (!usingGPT5.value)
+    return
+  const lastGPT5ActivatedTimestamp = appStore.lastGPT5ActivatedTimestamp
+  const now = Date.now()
+  if (now - lastGPT5ActivatedTimestamp > 30 * 1000 * 60)
+    toggleUsingGPT5()
+}
+
 window.setInterval(() => {
   resetUsingGPT4()
+  resetUsingGPT5()
 }, 1000 * 60)
 
 async function onConversation() {
@@ -112,6 +124,7 @@ async function onConversation() {
     options = { ...lastContext }
 
   options.usingGPT4 = usingGPT4.value
+  options.usingGPT5 = usingGPT5.value
 
   addChat(
     +uuid,
@@ -225,6 +238,9 @@ async function onConversation() {
   finally {
     if (usingGPT4.value)
       appStore.setLastGPT4ActivatedTimestamp(Date.now())
+
+    if (usingGPT5.value)
+      appStore.setLastGPT5ActivatedTimestamp(Date.now())
 
     if (enableAutoSpeech.value) {
       const currentChat = getChatByUuidAndIndex(+uuid, dataSources.value.length - 1)
@@ -476,9 +492,11 @@ onUnmounted(() => {
       v-if="isMobile"
       :using-context="usingContext"
       :using-gpt4="usingGPT4"
+      :using-gpt5="usingGPT5"
       :enable-auto-speech="enableAutoSpeech"
       @toggle-using-context="toggleUsingContext"
       @toggle-using-gpt4="toggleUsingGPT4"
+      @toggle-using-gpt5="toggleUsingGPT5"
       @toggle-auto-speech="toggleAutoSpeech"
     />
     <main class="flex-1 overflow-hidden">
@@ -531,6 +549,11 @@ onUnmounted(() => {
           <HoverButton v-if="!isMobile" @click="toggleUsingGPT4">
             <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGPT4, 'text-[#a8071a]': !usingGPT4 }">
               <SvgIcon icon="ph:number-circle-four-bold" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="toggleUsingGPT5">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingGPT5, 'text-[#a8071a]': !usingGPT5 }">
+              <SvgIcon icon="ph:number-circle-five-bold" />
             </span>
           </HoverButton>
           <HoverButton v-if="!isMobile" @click="toggleAutoSpeech">

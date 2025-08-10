@@ -33,6 +33,11 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
+    setUsingGPT5(context: boolean) {
+      this.usingGPT5 = context
+      this.recordState()
+    },
+
     setAutoSpeech(context: boolean) {
       this.enableAutoSpeech = context
       this.recordState()

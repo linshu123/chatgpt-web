@@ -8,6 +8,7 @@ export function defaultState(): Chat.ChatState {
     active: uuid,
     enableAutoSpeech: false,
     usingGPT4: false,
+    usingGPT5: false,
     usingContext: true,
     history: [{ uuid, title: 'New Chat', isEdit: false }],
     chat: [{ uuid, data: [] }],
