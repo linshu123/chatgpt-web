@@ -68,7 +68,6 @@ export default {
     theme: '테마',
     language: '언어',
     api: 'API',
-    reverseProxy: '리버스 프록시',
     timeout: '타임아웃',
     socks: 'Socks',
     httpsProxy: 'HTTPS 프록시',

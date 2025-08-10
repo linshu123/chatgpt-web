@@ -17,37 +17,43 @@ spec:
         app: chatgpt-web
     spec:
       containers:
-        - image: chenzhaoyu94/chatgpt-web
-          name: chatgpt-web
+        - name: chatgpt-web
+          image: chenzhaoyu94/chatgpt-web:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3002
           env:
             - name: OPENAI_API_KEY
-              value: sk-xxx
+              value: "${OPENAI_API_KEY}"
             - name: OPENAI_API_BASE_URL
-              value: 'https://api.openai.com'
+              value: "${OPENAI_API_BASE_URL}"
             - name: OPENAI_API_MODEL
-              value: gpt-4o
-            - name: API_REVERSE_PROXY
-              value: https://bypass.churchless.tech/api/conversation
+              value: "${OPENAI_API_MODEL}"
             - name: AUTH_SECRET_KEY
-              value: '123456'
-            - name: TIMEOUT_MS
-              value: '60000'
-            - name: SOCKS_PROXY_HOST
-              value: ''
-            - name: SOCKS_PROXY_PORT
-              value: ''
+              value: "${AUTH_SECRET_KEY}"
             - name: HTTPS_PROXY
-              value: ''
+              value: "${HTTPS_PROXY}"
+            - name: ALL_PROXY
+              value: "${ALL_PROXY}"
+            - name: SOCKS_PROXY_HOST
+              value: "${SOCKS_PROXY_HOST}"
+            - name: SOCKS_PROXY_PORT
+              value: "${SOCKS_PROXY_PORT}"
+            - name: SOCKS_PROXY_USERNAME
+              value: "${SOCKS_PROXY_USERNAME}"
+            - name: SOCKS_PROXY_PASSWORD
+              value: "${SOCKS_PROXY_PASSWORD}"
+            - name: TIMEOUT_MS
+              value: "${TIMEOUT_MS}"
+            - name: OPENAI_API_DISABLE_DEBUG
+              value: "${OPENAI_API_DISABLE_DEBUG}"
           resources:
             limits:
-              cpu: 500m
-              memory: 500Mi
+              memory: "1Gi"
+              cpu: "1000m"
             requests:
-              cpu: 300m
-              memory: 300Mi
+              memory: "512Mi"
+              cpu: "500m"
 ---
 apiVersion: v1
 kind: Service

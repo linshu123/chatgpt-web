@@ -70,7 +70,6 @@ export default {
     theme: 'Theme',
     language: 'Language',
     api: 'API',
-    reverseProxy: 'Reverse Proxy',
     timeout: 'Timeout',
     socks: 'Socks',
     httpsProxy: 'HTTPS Proxy',

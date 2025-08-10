@@ -1,13 +1,12 @@
 import * as dotenv from 'dotenv'
 import 'isomorphic-fetch'
 import { OpenAI } from 'openai'
-import { ChatGPTUnofficialProxyAPI } from 'chatgpt'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import { sendResponse } from '../utils'
 import { isNotEmptyString } from '../utils/is'
-import type { ApiModel, ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
+import type { ApiModel, ModelConfig } from '../types'
 import type { ChatMessage, RequestMetadata, RequestOptions, SetProxyOptions, UsageResponse } from './types'
 import { checkForSuicideKeywords } from './safety'
 import { sendMessageToEmail } from './monitoring'
@@ -29,56 +28,32 @@ const ErrorCodeMessage: Record<string, string> = {
 }
 
 const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 100 * 1000
-const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
 let apiModel: ApiModel
 // Keep a default model from env, but do NOT mutate it per request
 const defaultModel = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL! : 'gpt-3.5-turbo'
 
-if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN))
-  throw new Error('Missing OPENAI_API_KEY or OPENAI_ACCESS_TOKEN environment variable')
+if (!isNotEmptyString(process.env.OPENAI_API_KEY))
+  throw new Error('Missing OPENAI_API_KEY environment variable')
 
 let openai: OpenAI | undefined
-let unofficialApi: ChatGPTUnofficialProxyAPI | undefined
-let currentUnofficialModel: string | undefined
 
-async function updateChatGPTAPIOptions(targetModel?: string): Promise<void> {
+async function updateChatGPTAPIOptions(): Promise<void> {
   const OPENAI_API_BASE_URL = process.env.OPENAI_API_BASE_URL
 
-  if (isNotEmptyString(process.env.OPENAI_API_KEY)) {
-    // Setup fetch proxy for OpenAI SDK if needed
-    const options = {} as SetProxyOptions
-    setupProxy(options)
+  // Setup fetch proxy for OpenAI SDK if needed
+  const options = {} as SetProxyOptions
+  setupProxy(options)
 
-    // Official OpenAI client does not depend on model; initialize once
-    if (!openai) {
-      openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY!,
-        baseURL: isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined,
-        fetch: options.fetch as any,
-      })
-    }
-    apiModel = 'ChatGPTAPI'
+  // Official OpenAI client does not depend on model; initialize once
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY!,
+      baseURL: isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined,
+      fetch: options.fetch as any,
+    })
   }
-  else {
-    const modelForUnofficial = targetModel ?? defaultModel
-
-    const options: ChatGPTUnofficialProxyAPIOptions = {
-      accessToken: process.env.OPENAI_ACCESS_TOKEN!,
-      apiReverseProxyUrl: isNotEmptyString(process.env.API_REVERSE_PROXY) ? process.env.API_REVERSE_PROXY : 'https://bypass.churchless.tech/api/conversation',
-      model: modelForUnofficial,
-      debug: !disableDebug,
-    }
-
-    setupProxy(options)
-
-    // Recreate only if model actually changes or api not yet created
-    if (!unofficialApi || currentUnofficialModel !== modelForUnofficial) {
-      unofficialApi = new ChatGPTUnofficialProxyAPI({ ...options })
-      currentUnofficialModel = modelForUnofficial
-    }
-    apiModel = 'ChatGPTUnofficialProxyAPI'
-  }
+  apiModel = 'ChatGPTAPI'
 }
 
 // Initialize
@@ -123,135 +98,109 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
 
   globalThis.console.log('chatSelectedModel', chatSelectedModel)
 
-  // Ensure clients are ready. Official client is model-agnostic; unofficial may need re-init with target model
-  if (!openai && isNotEmptyString(process.env.OPENAI_API_KEY))
+  // Ensure client is ready.
+  if (!openai)
     await updateChatGPTAPIOptions()
-  if (!openai && !unofficialApi)
-    await updateChatGPTAPIOptions(chatSelectedModel)
-  if (unofficialApi && currentUnofficialModel !== chatSelectedModel)
-    await updateChatGPTAPIOptions(chatSelectedModel)
 
   try {
-    if (apiModel === 'ChatGPTAPI') {
-      // Official OpenAI path with streaming aggregation and conversation history
-      const conversationId = lastContext?.conversationId ?? cryptoRandomId()
-      const previousAssistantId = lastContext?.parentMessageId
+    // Official OpenAI path with streaming aggregation and conversation history
+    const conversationId = lastContext?.conversationId ?? cryptoRandomId()
+    const previousAssistantId = lastContext?.parentMessageId
 
-      // Create and store the new user message to link the chain
-      const userMessageId = cryptoRandomId()
-      const userMessage: ChatMessage = {
-        id: userMessageId,
-        conversationId,
-        parentMessageId: previousAssistantId,
-        role: 'user',
-        text: message,
+    // Create and store the new user message to link the chain
+    const userMessageId = cryptoRandomId()
+    const userMessage: ChatMessage = {
+      id: userMessageId,
+      conversationId,
+      parentMessageId: previousAssistantId,
+      role: 'user',
+      text: message,
+    }
+    messageStore.set(userMessageId, userMessage)
+
+    // Build messages with history + current user
+    const messages = buildHistoryMessages(previousAssistantId, systemMessage)
+    messages.push({ role: 'user', content: message })
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+    const basePayload: any = {
+      model: chatSelectedModel,
+      messages,
+      stream: true,
+    }
+    globalThis.console.log('messages', messages)
+    if (supportsSamplingParams(chatSelectedModel) && typeof temperature === 'number')
+      basePayload.temperature = temperature
+    if (supportsSamplingParams(chatSelectedModel) && typeof top_p === 'number')
+      basePayload.top_p = top_p
+
+    const doStream = async (payload: any) =>
+      await openai!.chat.completions.create(payload, { signal: controller.signal })
+
+    let stream
+    try {
+      stream = await doStream(basePayload)
+    }
+    catch (err: any) {
+      const msg = String(err?.message || '')
+      if (/Unsupported value: 'temperature'/.test(msg) || /parameter.*temperature/i.test(msg)) {
+        // Retry without sampling params
+        const retryPayload = { ...basePayload }
+        delete retryPayload.temperature
+        delete retryPayload.top_p
+        stream = await doStream(retryPayload)
       }
-      messageStore.set(userMessageId, userMessage)
-
-      // Build messages with history + current user
-      const messages = buildHistoryMessages(previousAssistantId, systemMessage)
-      messages.push({ role: 'user', content: message })
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), timeoutMs)
-
-      const basePayload: any = {
-        model: chatSelectedModel,
-        messages,
-        stream: true,
+      else {
+        throw err
       }
-      globalThis.console.log('messages', messages)
-      if (supportsSamplingParams(chatSelectedModel) && typeof temperature === 'number')
-        basePayload.temperature = temperature
-      if (supportsSamplingParams(chatSelectedModel) && typeof top_p === 'number')
-        basePayload.top_p = top_p
+    }
 
-      const doStream = async (payload: any) =>
-        await openai!.chat.completions.create(payload, { signal: controller.signal })
+    let aggregatedText = ''
+    // Create assistant message ID
+    const assistantMessageId = cryptoRandomId()
+    let finalFinishReason: string | undefined
 
-      let stream
-      try {
-        stream = await doStream(basePayload)
-      }
-      catch (err: any) {
-        const msg = String(err?.message || '')
-        if (/Unsupported value: 'temperature'/.test(msg) || /parameter.*temperature/i.test(msg)) {
-          // Retry without sampling params
-          const retryPayload = { ...basePayload }
-          delete retryPayload.temperature
-          delete retryPayload.top_p
-          stream = await doStream(retryPayload)
-        }
-        else {
-          throw err
-        }
-      }
-
-      let aggregatedText = ''
-      // Create assistant message ID
-      const assistantMessageId = cryptoRandomId()
-      let finalFinishReason: string | undefined
-
-      for await (const part of stream) {
-        const delta = part.choices?.[0]?.delta?.content ?? ''
-        const fr = part.choices?.[0]?.finish_reason
-        if (fr)
-          finalFinishReason = fr
-        if (!delta)
-          continue
-        aggregatedText += delta
-        const partial: ChatMessage = {
-          id: assistantMessageId,
-          conversationId,
-          parentMessageId: userMessageId,
-          role: 'assistant',
-          text: aggregatedText,
-          detail: part,
-        }
-        onStream?.(partial)
-      }
-      clearTimeout(timeout)
-
-      const final: ChatMessage = {
+    for await (const part of stream) {
+      const delta = part.choices?.[0]?.delta?.content ?? ''
+      const fr = part.choices?.[0]?.finish_reason
+      if (fr)
+        finalFinishReason = fr
+      if (!delta)
+        continue
+      aggregatedText += delta
+      const partial: ChatMessage = {
         id: assistantMessageId,
         conversationId,
         parentMessageId: userMessageId,
         role: 'assistant',
         text: aggregatedText,
-        detail: { choices: [{ finish_reason: finalFinishReason ?? 'stop' }] },
+        detail: part,
       }
+      onStream?.(partial)
+    }
+    clearTimeout(timeout)
 
-      // Persist assistant message for future context
-      messageStore.set(assistantMessageId, final)
-
-      globalThis.console.log('Model:', chatSelectedModel)
-      globalThis.console.log('User:', message)
-      const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
-      globalThis.console.log(`${modelLabel}:`, final.text)
-      sendMessageToEmail(message, final.text, chatSelectedModel, metadata)
-      checkForSuicideKeywords(message, final.text)
-      return sendResponse({ type: 'Success', data: final })
+    const final: ChatMessage = {
+      id: assistantMessageId,
+      conversationId,
+      parentMessageId: userMessageId,
+      role: 'assistant',
+      text: aggregatedText,
+      detail: { choices: [{ finish_reason: finalFinishReason ?? 'stop' }] },
     }
 
-    // Unofficial path (preserved)
-    let sendOptions: any = { timeoutMs }
-    if (lastContext != null)
-      sendOptions = { ...sendOptions, ...lastContext }
-
-    const response = await unofficialApi!.sendMessage(message, {
-      ...sendOptions,
-      onProgress: (partialResponse: any) => {
-        onStream?.(partialResponse)
-      },
-    })
+    // Persist assistant message for future context
+    messageStore.set(assistantMessageId, final)
 
     globalThis.console.log('Model:', chatSelectedModel)
     globalThis.console.log('User:', message)
     const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
-    globalThis.console.log(`${modelLabel}:`, response.text)
-    sendMessageToEmail(message, response.text, chatSelectedModel, metadata)
-    checkForSuicideKeywords(message, response.text)
-    return sendResponse({ type: 'Success', data: response })
+    globalThis.console.log(`${modelLabel}:`, final.text)
+    sendMessageToEmail(message, final.text, chatSelectedModel, metadata)
+    checkForSuicideKeywords(message, final.text)
+    return sendResponse({ type: 'Success', data: final })
   }
   catch (error: any) {
     const code = error.statusCode
@@ -323,14 +272,13 @@ function formatDate(): string[] {
 
 async function chatConfig() {
   const usage = await fetchUsage()
-  const reverseProxy = process.env.API_REVERSE_PROXY ?? '-'
   const httpsProxy = (process.env.HTTPS_PROXY || process.env.ALL_PROXY) ?? '-'
   const socksProxy = (process.env.SOCKS_PROXY_HOST && process.env.SOCKS_PROXY_PORT)
     ? (`${process.env.SOCKS_PROXY_HOST}:${process.env.SOCKS_PROXY_PORT}`)
     : '-'
   return sendResponse<ModelConfig>({
     type: 'Success',
-    data: { apiModel, reverseProxy, timeoutMs, socksProxy, httpsProxy, usage },
+    data: { apiModel, timeoutMs, socksProxy, httpsProxy, usage },
   })
 }
 
@@ -370,6 +318,6 @@ function cryptoRandomId(): string {
   return `id-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
 }
 
-export type { ChatContext, ChatMessage }
+export type { ChatMessage }
 
 export { chatReplyProcess, chatConfig, currentModel }

@@ -7,7 +7,6 @@ import { useAuthStore } from '@/store'
 
 interface ConfigState {
   timeoutMs?: number
-  reverseProxy?: string
   apiModel?: string
   socksProxy?: string
   httpsProxy?: string
@@ -63,9 +62,6 @@ onMounted(() => {
       <p>{{ $t("setting.api") }}：{{ config?.apiModel ?? '-' }}</p>
       <p v-if="isChatGPTAPI">
         {{ $t("setting.monthlyUsage") }}：{{ config?.usage ?? '-' }}
-      </p>
-      <p v-if="!isChatGPTAPI">
-        {{ $t("setting.reverseProxy") }}：{{ config?.reverseProxy ?? '-' }}
       </p>
       <p>{{ $t("setting.timeout") }}：{{ config?.timeoutMs ?? '-' }}</p>
       <p>{{ $t("setting.socks") }}：{{ config?.socksProxy ?? '-' }}</p>
