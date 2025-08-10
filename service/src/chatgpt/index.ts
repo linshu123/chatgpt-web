@@ -32,15 +32,17 @@ const timeoutMs: number = !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT
 const disableDebug: boolean = process.env.OPENAI_API_DISABLE_DEBUG === 'true'
 
 let apiModel: ApiModel
-let model = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL : 'gpt-3.5-turbo'
+// Keep a default model from env, but do NOT mutate it per request
+const defaultModel = isNotEmptyString(process.env.OPENAI_API_MODEL) ? process.env.OPENAI_API_MODEL! : 'gpt-3.5-turbo'
 
 if (!isNotEmptyString(process.env.OPENAI_API_KEY) && !isNotEmptyString(process.env.OPENAI_ACCESS_TOKEN))
   throw new Error('Missing OPENAI_API_KEY or OPENAI_ACCESS_TOKEN environment variable')
 
 let openai: OpenAI | undefined
 let unofficialApi: ChatGPTUnofficialProxyAPI | undefined
+let currentUnofficialModel: string | undefined
 
-async function updateChatGPTAPIOptions(): Promise<void> {
+async function updateChatGPTAPIOptions(targetModel?: string): Promise<void> {
   const OPENAI_API_BASE_URL = process.env.OPENAI_API_BASE_URL
 
   if (isNotEmptyString(process.env.OPENAI_API_KEY)) {
@@ -48,24 +50,33 @@ async function updateChatGPTAPIOptions(): Promise<void> {
     const options = {} as SetProxyOptions
     setupProxy(options)
 
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY!,
-      baseURL: isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined,
-      fetch: options.fetch as any,
-    })
+    // Official OpenAI client does not depend on model; initialize once
+    if (!openai) {
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!,
+        baseURL: isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined,
+        fetch: options.fetch as any,
+      })
+    }
     apiModel = 'ChatGPTAPI'
   }
   else {
+    const modelForUnofficial = targetModel ?? defaultModel
+
     const options: ChatGPTUnofficialProxyAPIOptions = {
       accessToken: process.env.OPENAI_ACCESS_TOKEN!,
       apiReverseProxyUrl: isNotEmptyString(process.env.API_REVERSE_PROXY) ? process.env.API_REVERSE_PROXY : 'https://bypass.churchless.tech/api/conversation',
-      model,
+      model: modelForUnofficial,
       debug: !disableDebug,
     }
 
     setupProxy(options)
 
-    unofficialApi = new ChatGPTUnofficialProxyAPI({ ...options })
+    // Recreate only if model actually changes or api not yet created
+    if (!unofficialApi || currentUnofficialModel !== modelForUnofficial) {
+      unofficialApi = new ChatGPTUnofficialProxyAPI({ ...options })
+      currentUnofficialModel = modelForUnofficial
+    }
     apiModel = 'ChatGPTUnofficialProxyAPI'
   }
 }
@@ -99,9 +110,10 @@ function buildHistoryMessages(lastAssistantId?: string, systemMessage?: string) 
 
 async function chatReplyProcess(options: RequestOptions, metadata: RequestMetadata) {
   globalThis.console.log('options', options)
-  const { usingGPT4, usingGPT5, message, lastContext, process, systemMessage, temperature, top_p } = options
+  const { usingGPT4, usingGPT5, message, lastContext, process: onStream, systemMessage, temperature, top_p } = options
 
-  let chatSelectedModel = model
+  // Request-scoped model selection
+  let chatSelectedModel = defaultModel
   if (usingGPT5)
     chatSelectedModel = 'gpt-5'
   else if (usingGPT4)
@@ -110,10 +122,14 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
     chatSelectedModel = 'gpt-3.5-turbo'
 
   globalThis.console.log('chatSelectedModel', chatSelectedModel)
-  if (chatSelectedModel !== model) {
-    model = chatSelectedModel
-    updateChatGPTAPIOptions()
-  }
+
+  // Ensure clients are ready. Official client is model-agnostic; unofficial may need re-init with target model
+  if (!openai && isNotEmptyString(process.env.OPENAI_API_KEY))
+    await updateChatGPTAPIOptions()
+  if (!openai && !unofficialApi)
+    await updateChatGPTAPIOptions(chatSelectedModel)
+  if (unofficialApi && currentUnofficialModel !== chatSelectedModel)
+    await updateChatGPTAPIOptions(chatSelectedModel)
 
   try {
     if (apiModel === 'ChatGPTAPI') {
@@ -140,14 +156,14 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
       const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
       const basePayload: any = {
-        model,
+        model: chatSelectedModel,
         messages,
         stream: true,
       }
       globalThis.console.log('messages', messages)
-      if (supportsSamplingParams(model) && typeof temperature === 'number')
+      if (supportsSamplingParams(chatSelectedModel) && typeof temperature === 'number')
         basePayload.temperature = temperature
-      if (supportsSamplingParams(model) && typeof top_p === 'number')
+      if (supportsSamplingParams(chatSelectedModel) && typeof top_p === 'number')
         basePayload.top_p = top_p
 
       const doStream = async (payload: any) =>
@@ -192,7 +208,7 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
           text: aggregatedText,
           detail: part,
         }
-        process?.(partial)
+        onStream?.(partial)
       }
       clearTimeout(timeout)
 
@@ -208,11 +224,11 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
       // Persist assistant message for future context
       messageStore.set(assistantMessageId, final)
 
-      globalThis.console.log('Model:', model)
+      globalThis.console.log('Model:', chatSelectedModel)
       globalThis.console.log('User:', message)
       const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
       globalThis.console.log(`${modelLabel}:`, final.text)
-      sendMessageToEmail(message, final.text, model, metadata)
+      sendMessageToEmail(message, final.text, chatSelectedModel, metadata)
       checkForSuicideKeywords(message, final.text)
       return sendResponse({ type: 'Success', data: final })
     }
@@ -225,15 +241,15 @@ async function chatReplyProcess(options: RequestOptions, metadata: RequestMetada
     const response = await unofficialApi!.sendMessage(message, {
       ...sendOptions,
       onProgress: (partialResponse: any) => {
-        process?.(partialResponse)
+        onStream?.(partialResponse)
       },
     })
 
-    globalThis.console.log('Model:', model)
+    globalThis.console.log('Model:', chatSelectedModel)
     globalThis.console.log('User:', message)
     const modelLabel = usingGPT5 ? 'GPT-5' : (usingGPT4 ? 'GPT-4' : 'ChatGPT')
     globalThis.console.log(`${modelLabel}:`, response.text)
-    sendMessageToEmail(message, response.text, model, metadata)
+    sendMessageToEmail(message, response.text, chatSelectedModel, metadata)
     checkForSuicideKeywords(message, response.text)
     return sendResponse({ type: 'Success', data: response })
   }
